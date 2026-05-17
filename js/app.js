@@ -8,22 +8,42 @@ const controls = document.querySelector('.controls');
 let noActive = true;
 
 // Utility: random integer in range
-function r(min,max){return Math.floor(Math.random()*(max-min+1))+min}
+function r(min,max){ return Math.floor(Math.random()*(max-min+1))+min }
 
-// Move the no button to a new safe position inside the card
+// show message helper
+function showMessage(){
+  message.hidden = false;
+  message.classList.add('show');
+  // persist
+  try{ localStorage.setItem('interactive-yesno-choice','yes') }catch(e){}
+}
+
+// Move the no button to a new safe position inside an expanded area around the controls
 function moveNoAway(cursorX,cursorY){
   if(!noActive) return;
   const rect = controls.getBoundingClientRect();
   const btnRect = noBtn.getBoundingClientRect();
   const padding = 12;
+
+  // Expand the allowed area by a fraction of the controls size to increase roaming space
+  const extraX = Math.floor(rect.width * 0.6); // 60% extra horizontal space
+  const extraY = Math.floor(rect.height * 0.6); // 60% extra vertical space
+
+  // Compute expanded ranges (left/top are relative to controls)
+  const minX = -extraX + padding;
+  const maxX = Math.max(20, Math.floor(rect.width - btnRect.width - padding)) + extraX;
+  const minY = -extraY + padding;
+  const maxY = Math.max(0, Math.floor(rect.height - btnRect.height - padding)) + extraY;
+
   // pick several candidate positions and choose one far from cursor
   const candidates = [];
-  for(let i=0;i<10;i++){
-    const x = r(padding, Math.max(20, Math.floor(rect.width - btnRect.width - padding)));
-    const y = r(padding, Math.max(0, Math.floor(rect.height - btnRect.height - padding)));
+  for(let i=0;i<16;i++){
+    const x = r(minX, maxX);
+    const y = r(minY, maxY);
     candidates.push({x,y});
   }
-  // compute distance and pick farthest from cursor
+
+  // compute distance (global) and pick the candidate farthest from cursor
   let best = candidates[0];
   let bestD = -1;
   candidates.forEach(c=>{
@@ -32,9 +52,11 @@ function moveNoAway(cursorX,cursorY){
     const dx = globalX - cursorX;
     const dy = globalY - cursorY;
     const d = Math.hypot(dx,dy);
-    if(d>bestD){bestD=d;best=c}
+    if(d > bestD){ bestD = d; best = c }
   });
+
   // apply position (relative to controls)
+  // We keep translate(-50%,0) to center the button at the chosen x position
   noBtn.style.left = `${best.x + btnRect.width/2}px`;
   noBtn.style.top = `${best.y}px`;
   // small random scale shrink so it feels playful
@@ -49,7 +71,7 @@ window.addEventListener('mousemove', (e)=>{
   const ny = nb.top + nb.height/2;
   const dist = Math.hypot(nx - e.clientX, ny - e.clientY);
   // threshold depends on button size
-  const threshold = Math.max(110, nb.width*1.6);
+  const threshold = Math.max(140, nb.width*1.8);
   if(dist < threshold){
     moveNoAway(e.clientX, e.clientY);
   }
@@ -65,6 +87,23 @@ noBtn.addEventListener('mouseleave', ()=>{
   noBtn.style.transform = 'translate(-50%,0) scale(1)';
 });
 
+// Keyboard support
+[yesBtn, noBtn].forEach(btn => {
+  btn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      btn.click();
+    }
+  });
+});
+
+// Make the "No" button move when focused by keyboard
+noBtn.addEventListener('focus', (e) => {
+  const fakeX = window.innerWidth / 2;
+  const fakeY = window.innerHeight / 2;
+  moveNoAway(fakeX, fakeY);
+});
+
 // Click the no button: it vanishes and yes grows
 noBtn.addEventListener('click', ()=>{
   if(!noActive) return;
@@ -73,6 +112,7 @@ noBtn.addEventListener('click', ()=>{
   noBtn.style.transition = 'transform 420ms cubic-bezier(.2,.8,.2,1), opacity 420ms';
   noBtn.style.transform = 'translate(-50%,0) scale(0.02)';
   noBtn.style.opacity = '0';
+  noBtn.setAttribute('aria-hidden','true');
   // enlarge yes
   yesBtn.style.transition = 'transform 520ms cubic-bezier(.2,.8,.2,1), box-shadow 520ms';
   yesBtn.style.transform = 'scale(1.6)';
@@ -83,31 +123,34 @@ noBtn.addEventListener('click', ()=>{
   },520);
 });
 
-// Click yes button: if only yes is present (or even if both), show final message
+// Click yes button: show final message
 yesBtn.addEventListener('click', ()=>{
-  // grow slightly for feedback
   yesBtn.style.transform = 'scale(1.1)';
-  setTimeout(()=>{
-    yesBtn.style.transform = 'scale(1)';
-  },180);
-  // Show message
-  message.hidden = false;
-  message.classList.add('show');
+  setTimeout(()=>{ yesBtn.style.transform = 'scale(1)'; },180);
+  showMessage();
+});
+
+// persist choice restore
+window.addEventListener('load', ()=>{
+  const choice = (()=>{try{return localStorage.getItem('interactive-yesno-choice')}catch(e){return null}})();
+  if(choice === 'yes'){
+    showMessage();
+    // hide no and enlarge yes
+    noBtn.style.display = 'none';
+    yesBtn.style.transform = 'scale(1.6)';
+  }
+  init();
 });
 
 // Initial positioning: place no button offset to the right
 function init(){
-  // make controls a placement area
   const rect = controls.getBoundingClientRect();
-  // set initial left so absolute positioning centers correctly
   noBtn.style.left = `${rect.width/2 + 80}px`;
   noBtn.style.top = `0px`;
   noBtn.style.transform = 'translate(-50%,0) scale(1)';
 }
 
-window.addEventListener('load', init);
 window.addEventListener('resize', ()=>{
-  // reset position on resize so it stays inside
   if(noActive){
     noBtn.style.left = '';
     noBtn.style.top = '';

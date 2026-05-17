@@ -39,7 +39,16 @@ body{
   color: #fff;
   text-shadow: 0 2px 12px rgba(0,0,0,0.25);
 }
-.controls{position:relative;height:100px;display:flex;align-items:center;justify-content:center;gap:24px}
+/* Updated: allow overflow so No button can roam farther */
+.controls{
+  position:relative;
+  height:100px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:24px;
+  overflow: visible; /* <-- added */
+}
 .btn{
   --size:110px;
   width:var(--size);
